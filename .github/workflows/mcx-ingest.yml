@@ -1,0 +1,52 @@
+name: MCX Official DOCX Archive
+
+on:
+  push:
+    branches: [mcx-standards-ingest-20261015]
+    paths: ['.github/workflows/mcx-ingest.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fetch-and-package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Fetch official 3GPP release, unpack actual DOCX
+        shell: bash
+        run: |
+          python - <<'PY'
+          import io, os, zipfile, pathlib, urllib.request, time, hashlib
+          roots=['https://www.3gpp.org/ftp/Specs/archive/22_series/22.179/22179-l00.zip','https://ftp.3gpp.org/Specs/archive/22_series/22.179/22179-l00.zip']
+          data=None
+          for url in roots:
+              try:
+                  print('GET', url, flush=True)
+                  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
+                  with urllib.request.urlopen(req,timeout=40) as resp: data=resp.read()
+                  if zipfile.is_zipfile(io.BytesIO(data)): break
+              except Exception as e: print(type(e).__name__,str(e),flush=True)
+          if not data or not zipfile.is_zipfile(io.BytesIO(data)): raise RuntimeError('Official 3GPP release unavailable')
+          with zipfile.ZipFile(io.BytesIO(data)) as arc:
+              docs=[n for n in arc.namelist() if n.lower().endswith('.docx') and not ('redline' in n.lower() or 'change' in n.lower())]
+              print('Candidates', docs, flush=True)
+              if not docs: raise RuntimeError('No actual DOCX in ZIP')
+              raw=arc.read(docs[0])
+          if not zipfile.is_zipfile(io.BytesIO(raw)): raise RuntimeError('DOCX invalid')
+          out=pathlib.Path('docx_content'); out.mkdir(parents=True,exist_ok=True)
+          with zipfile.ZipFile(io.BytesIO(raw)) as arc:
+              names=arc.namelist()
+              if '[Content_Types].xml' not in names or 'word/document.xml' not in names: raise RuntimeError('Bad DOCX structure')
+              arc.extractall(out)
+          print('DOCX_SHA256',hashlib.sha256(raw).hexdigest(),'BYTES',len(raw),'PARTS',len(names))
+          PY
+      - name: Publish DOCX as ZIP-compatible artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcx-22179-l00-docx
+          path: docx_content/
+          compression-level: 0
+          include-hidden-files: true
+          if-no-files-found: error
