@@ -1,0 +1,133 @@
+name: Official MC source editions by Release
+
+on:
+  push:
+    branches: [mcx-release-rebuild-20261016]
+    paths: ['.github/workflows/mcx-release-sources.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Enumerate official archive editions
+        shell: bash
+        run: |
+          python - <<'PY'
+          import concurrent.futures, datetime, hashlib, html.parser, json, pathlib, re, time, urllib.parse, urllib.request
+          specs='22.179 22.280 22.281 22.282 23.179 23.180 23.280 23.281 23.282 23.283 23.289 23.379 23.479 24.281 24.282 24.283 24.379 24.380 24.481 24.482 24.483 24.484 24.581 24.582 26.179 26.281 29.379 29.380 29.582 33.179 33.180 36.579-1 36.579-2 36.579-3 36.579-4 36.579-5 36.579-6 36.579-7 36.579-8 36.579-9 37.579-1 37.579-2 37.579-3 37.579-4 37.579-5 37.579-6 37.579-7 37.579-8 37.579-9 37.579-10 23.700-09 23.700-37 23.700-38 23.700-39 23.744 23.774 23.779 23.780 24.883 24.885 24.381 24.382 24.383 24.384 23.781 23.782 23.783 23.700-76 23.700-79 26.879 26.979 23.247 23.304 33.880 33.779 26.989 33.879 22.881 29.283 23.303 23.468 29.468 21.905 22.011 22.261 22.289 23.002 23.003 23.032 23.335 31.102 23.228 23.237 23.380 24.109 24.216 24.229 24.237 23.203 23.401 24.007 24.008 24.301 29.061 29.213 29.214 23.246 26.346 26.348 26.502 29.116 29.532 23.501 23.502 23.503 24.501 24.526 29.500 29.501 29.514 29.522 29.571 24.333 24.334 24.554 33.303 33.503 23.271 23.273 25.305 29.199-09 29.572 33.203 33.210 33.220 33.222 33.310 33.328 33.401 33.501 26.171 26.173 26.190 26.191 26.192 26.193 26.194 26.204 26.441 26.442 26.443 26.445 26.447 26.449 26.450 26.451 26.452 36.300 36.331 38.300 38.331 22.879 22.880 23.801-03'.split()
+          out=pathlib.Path('inventory');out.mkdir()
+          class Links(html.parser.HTMLParser):
+              def __init__(self):super().__init__();self.links=[]
+              def handle_starttag(self,tag,attrs):
+                  if tag=='a':self.links.extend(v for k,v in attrs if k=='href' and v)
+          def read(url):
+              req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (standards archive research)'})
+              with urllib.request.urlopen(req,timeout=60) as r:return r.read()
+          def inspect(spec):
+              path=f'/Specs/archive/{spec[:2]}_series/{spec}/'
+              errors=[]
+              for root in ['https://www.3gpp.org/ftp','https://ftp.3gpp.org']:
+                  url=root+path
+                  try:
+                      raw=read(url);page=raw.decode('utf-8','replace');parser=Links();parser.feed(page)
+                      (out/(spec+'.html')).write_bytes(raw)
+                      pat=re.compile(re.escape(spec.replace('.',''))+r'-([0-9a-z])([0-9a-z])([0-9a-z])\.zip$',re.I)
+                      found={}
+                      for href in parser.links:
+                          link=urllib.parse.urljoin(url,href);name=urllib.parse.unquote(urllib.parse.urlparse(link).path.rsplit('/',1)[-1]);m=pat.fullmatch(name)
+                          if m:
+                              v=tuple(int(x,36) for x in m.groups());found[name]={'file':name,'version':'.'.join(map(str,v)),'major':v[0],'url':link}
+                      if not found:raise ValueError('No matching official primary release package links')
+                      latest={}
+                      for item in found.values():
+                          rel=str(item['major'])
+                          if rel not in latest or tuple(map(int,item['version'].split('.')))>tuple(map(int,latest[rel]['version'].split('.'))):latest[rel]=item
+                      row={'specification':spec,'status':'listed','archive_url':url,'listing_sha256':hashlib.sha256(raw).hexdigest(),'latest_by_major':latest,'packages':sorted(found.values(),key=lambda x:tuple(map(int,x['version'].split('.'))))}
+                      print(spec,' '.join(f"{k}:{v['version']}" for k,v in latest.items()),flush=True);return row
+                  except Exception as e:errors.append({'url':url,'error':str(e)})
+              print(spec,'LISTING_FAILED',errors,flush=True);return {'specification':spec,'status':'listing-failed','errors':errors}
+          with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:rows=list(pool.map(inspect,specs))
+          doc={'acquired_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source':'Official 3GPP archive directory listings','warning':'Filename major is a candidate Release, not verified document-cover metadata. Drafts require independent cover verification.','specifications':rows}
+          (out/'inventory.json').write_text(json.dumps(doc,ensure_ascii=False,indent=2),encoding='utf-8')
+          print('INVENTORY',len(rows),'LISTED',sum(r['status']=='listed' for r in rows),flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mcx-official-release-inventory
+          path: inventory/
+          retention-days: 30
+          if-no-files-found: error
+  acquire:
+    needs: inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        release: [13, 14, 15, 16, 17, 18, 19, 20, 21, 0]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: mcx-official-release-inventory
+          path: inventory
+      - name: Download primary DOC and DOCX evidence
+        env:
+          RELEASE: ${{ matrix.release }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import concurrent.futures, datetime, hashlib, io, json, os, pathlib, re, time, urllib.request, zipfile
+          rel=int(os.environ['RELEASE']);out=pathlib.Path('sources');out.mkdir()
+          inventory=json.loads(pathlib.Path('inventory/inventory.json').read_text())
+          selected=set('22.179 22.280 22.281 22.282 23.179 23.180 23.280 23.281 23.282 23.283 23.289 23.379 23.479 24.281 24.282 24.283 24.379 24.380 24.481 24.482 24.483 24.484 24.581 24.582 26.179 26.281 29.379 29.380 29.582 33.179 33.180 36.579-1 36.579-2 36.579-3 36.579-4 36.579-5 36.579-6 36.579-7 36.579-8 36.579-9 37.579-1 37.579-2 37.579-3 37.579-4 37.579-5 37.579-6 37.579-7 37.579-8 37.579-9 37.579-10 23.700-09 23.700-37 23.700-38 23.700-39 23.744 23.774 23.779 23.780 24.883 24.381 24.382 24.383 24.384 23.781 23.782 23.783 23.700-76 23.700-79 26.879 23.247 23.304 33.880 33.779 26.989 33.879 22.881 29.283 23.303 23.468 29.468 22.879 22.880 23.801-03 21.905 22.011 22.261 22.289 23.003 23.032 23.228 24.229 23.203 23.401 29.214 23.246 26.346 26.348 26.502 29.116 23.501 23.502 23.503 29.500 29.514 29.522 29.571 29.572 23.271 23.273 33.203 33.210 33.220 33.222 33.310 33.328 33.401 33.501 33.303 33.503'.split())
+          jobs=[]
+          for row in inventory['specifications']:
+              spec=row['specification']
+              if spec not in selected:continue
+              latest=row.get('latest_by_major',{}).get(str(rel))
+              if latest:jobs.append({'specification':spec,**latest})
+          def acquire(item):
+              result=dict(item);spec=item['specification'];url=item['url'];errors=[]
+              urls=[url,url.replace('www.3gpp.org/ftp','ftp.3gpp.org')]
+              for u in dict.fromkeys(urls):
+                  for attempt in range(2):
+                      try:
+                          req=urllib.request.Request(u,headers={'User-Agent':'Mozilla/5.0 (standards archive research)'})
+                          with urllib.request.urlopen(req,timeout=120) as r:raw=r.read()
+                          if not zipfile.is_zipfile(io.BytesIO(raw)):raise ValueError('Response is not a ZIP release package')
+                          folder=out/spec/item['version'];folder.mkdir(parents=True,exist_ok=True)
+                          docs=[]
+                          with zipfile.ZipFile(io.BytesIO(raw)) as arc:
+                              for info in arc.infolist():
+                                  name=pathlib.PurePosixPath(info.filename.replace('\\','/')).name
+                                  if not name.lower().endswith(('.doc','.docx')) or name.startswith('~$'):continue
+                                  if info.file_size>160*1024*1024:raise ValueError('Oversize member')
+                                  data=arc.read(info)
+                                  target=folder/name
+                                  if target.exists():raise ValueError('Duplicate member basename')
+                                  target.write_bytes(data)
+                                  docs.append({'member':info.filename,'path':str(target.relative_to(out)),'bytes':len(data),'sha256':hashlib.sha256(data).hexdigest()})
+                          if not docs:raise ValueError('No actual DOC/DOCX in package')
+                          result.update(status='downloaded',download_url=u,package_sha256=hashlib.sha256(raw).hexdigest(),package_bytes=len(raw),documents=docs)
+                          print(spec,item['version'],'DOCS',len(docs),'BYTES',sum(d['bytes'] for d in docs),flush=True);return result
+                      except Exception as e:
+                          errors.append({'url':u,'attempt':attempt+1,'error':str(e)})
+                          if attempt==0:time.sleep(2)
+              result.update(status='failed',errors=errors);print(spec,item['version'],'FAILED',flush=True);return result
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:rows=list(pool.map(acquire,jobs))
+          (out/'manifest.json').write_text(json.dumps({'candidate_release':rel,'acquired_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'warning':'DOC/DOCX covers and normative reference applicability must be independently verified before knowledge authoring. Raw bytes are preserved.','packages':rows},ensure_ascii=False,indent=2),encoding='utf-8')
+          print('ACQUIRED',sum(r['status']=='downloaded' for r in rows),'OF',len(rows),flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mcx-official-sources-major-${{ matrix.release }}
+          path: sources/
+          compression-level: 6
+          retention-days: 30
+          if-no-files-found: error
