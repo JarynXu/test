@@ -10,43 +10,162 @@ permissions:
   contents: read
 
 jobs:
-  fetch-and-package:
+  package:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        include:
+          - number: "22.280"
+            version: "21.0.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/22_series/22.280/22280-l00.zip"
+            artifact_name: "mcx-22-280-v21-0-0-p0"
+          - number: "23.280"
+            version: "20.5.1"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/23_series/23.280/23280-k51.zip"
+            artifact_name: "mcx-23-280-v20-5-1-p0"
+          - number: "23.281"
+            version: "20.5.1"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/23_series/23.281/23281-k51.zip"
+            artifact_name: "mcx-23-281-v20-5-1-p0"
+          - number: "23.282"
+            version: "20.3.1"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/23_series/23.282/23282-k31.zip"
+            artifact_name: "mcx-23-282-v20-3-1-p0"
+          - number: "22.011"
+            version: "21.0.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/22_series/22.011/22011-l00.zip"
+            artifact_name: "mcx-22-011-v21-0-0-p0"
+          - number: "22.261"
+            version: "20.8.1"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/22_series/22.261/22261-k81.zip"
+            artifact_name: "mcx-22-261-v20-8-1-p0"
+          - number: "23.003"
+            version: "20.1.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/23_series/23.003/23003-k10.zip"
+            artifact_name: "mcx-23-003-v20-1-0-p0"
+          - number: "26.502"
+            version: "19.6.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/26_series/26.502/26502-j60.zip"
+            artifact_name: "mcx-26-502-v19-6-0-p0"
+          - number: "29.500"
+            version: "20.0.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/29_series/29.500/29500-k00.zip"
+            artifact_name: "mcx-29-500-v20-0-0-p0"
+          - number: "29.522"
+            version: "20.1.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/29_series/29.522/29522-k10.zip"
+            artifact_name: "mcx-29-522-v20-1-0-p0"
+          - number: "29.522"
+            version: "20.1.0"
+            part: 1
+            url: "https://www.3gpp.org/ftp/Specs/archive/29_series/29.522/29522-k10.zip"
+            artifact_name: "mcx-29-522-v20-1-0-p1"
+          - number: "29.522"
+            version: "20.1.0"
+            part: 2
+            url: "https://www.3gpp.org/ftp/Specs/archive/29_series/29.522/29522-k10.zip"
+            artifact_name: "mcx-29-522-v20-1-0-p2"
+          - number: "29.522"
+            version: "20.1.0"
+            part: 3
+            url: "https://www.3gpp.org/ftp/Specs/archive/29_series/29.522/29522-k10.zip"
+            artifact_name: "mcx-29-522-v20-1-0-p3"
+          - number: "29.571"
+            version: "20.1.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/29_series/29.571/29571-k10.zip"
+            artifact_name: "mcx-29-571-v20-1-0-p0"
+          - number: "29.572"
+            version: "20.1.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/29_series/29.572/29572-k10.zip"
+            artifact_name: "mcx-29-572-v20-1-0-p0"
+          - number: "31.102"
+            version: "20.0.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/31_series/31.102/31102-k00.zip"
+            artifact_name: "mcx-31-102-v20-0-0-p0"
+          - number: "37.579-1"
+            version: "18.1.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/37_series/37.579-1/37579-1-i10.zip"
+            artifact_name: "mcx-37-579-1-v18-1-0-p0"
+          - number: "37.579-2"
+            version: "18.1.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/37_series/37.579-2/37579-2-i10.zip"
+            artifact_name: "mcx-37-579-2-v18-1-0-p0"
+          - number: "37.579-4"
+            version: "18.1.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/37_series/37.579-4/37579-4-i10.zip"
+            artifact_name: "mcx-37-579-4-v18-1-0-p0"
+          - number: "37.579-5"
+            version: "19.1.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/37_series/37.579-5/37579-5-j10.zip"
+            artifact_name: "mcx-37-579-5-v19-1-0-p0"
+          - number: "37.579-6"
+            version: "18.0.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/37_series/37.579-6/37579-6-i00.zip"
+            artifact_name: "mcx-37-579-6-v18-0-0-p0"
+          - number: "37.579-7"
+            version: "17.7.0"
+            part: 0
+            url: "https://www.3gpp.org/ftp/Specs/archive/37_series/37.579-7/37579-7-h70.zip"
+            artifact_name: "mcx-37-579-7-v17-7-0-p0"
     steps:
-      - name: Fetch official 3GPP release, unpack actual DOCX
+      - name: Fetch official 3GPP ZIP; select actual DOCX
+        env:
+          SPEC_URL: ${{ matrix.url }}
+          PART: ${{ matrix.part }}
         shell: bash
         run: |
           python - <<'PY'
-          import io, os, zipfile, pathlib, urllib.request, time, hashlib
-          roots=['https://www.3gpp.org/ftp/Specs/archive/22_series/22.179/22179-l00.zip','https://ftp.3gpp.org/Specs/archive/22_series/22.179/22179-l00.zip']
+          import io, os, zipfile, pathlib, urllib.request, hashlib
+          url=os.environ['SPEC_URL']; part=int(os.environ['PART'])
+          urls=[url,url.replace('www.3gpp.org/ftp','ftp.3gpp.org/Specs').replace('/Specs/Specs/','/Specs/')]
           data=None
-          for url in roots:
+          for u in urls:
               try:
-                  print('GET', url, flush=True)
-                  req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
-                  with urllib.request.urlopen(req,timeout=40) as resp: data=resp.read()
+                  print('GET',u,flush=True)
+                  req=urllib.request.Request(u,headers={'User-Agent':'Mozilla/5.0'})
+                  with urllib.request.urlopen(req,timeout=65) as resp: data=resp.read()
                   if zipfile.is_zipfile(io.BytesIO(data)): break
               except Exception as e: print(type(e).__name__,str(e),flush=True)
-          if not data or not zipfile.is_zipfile(io.BytesIO(data)): raise RuntimeError('Official 3GPP release unavailable')
+          if not data or not zipfile.is_zipfile(io.BytesIO(data)): raise RuntimeError('3GPP official archive unavailable')
           with zipfile.ZipFile(io.BytesIO(data)) as arc:
-              docs=[n for n in arc.namelist() if n.lower().endswith('.docx') and not ('redline' in n.lower() or 'change' in n.lower())]
-              print('Candidates', docs, flush=True)
-              if not docs: raise RuntimeError('No actual DOCX in ZIP')
-              raw=arc.read(docs[0])
-          if not zipfile.is_zipfile(io.BytesIO(raw)): raise RuntimeError('DOCX invalid')
-          out=pathlib.Path('docx_content'); out.mkdir(parents=True,exist_ok=True)
+              files=sorted(n for n in arc.namelist() if n.lower().endswith('.docx') and not any(t in n.lower() for t in ['redline','track-change']))
+              print('DOCX_FILES',repr(files),flush=True)
+              if part>=len(files): raise RuntimeError(f'File index {part} absent; count={len(files)}')
+              raw=arc.read(files[part])
+          if not zipfile.is_zipfile(io.BytesIO(raw)): raise RuntimeError('Not DOCX')
+          out=pathlib.Path('docx_contents');out.mkdir(parents=True,exist_ok=True)
           with zipfile.ZipFile(io.BytesIO(raw)) as arc:
               names=arc.namelist()
-              if '[Content_Types].xml' not in names or 'word/document.xml' not in names: raise RuntimeError('Bad DOCX structure')
+              if '[Content_Types].xml' not in names or 'word/document.xml' not in names: raise RuntimeError('Invalid Office DOCX')
               arc.extractall(out)
-          print('DOCX_SHA256',hashlib.sha256(raw).hexdigest(),'BYTES',len(raw),'PARTS',len(names))
+          print('SOURCE_FILE',files[part],'SHA256',hashlib.sha256(raw).hexdigest(),'BYTES',len(raw),flush=True)
           PY
-      - name: Publish DOCX as ZIP-compatible artifact
+      - name: Publish DOCX-compatible artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mcx-22179-l00-docx
-          path: docx_content/
-          compression-level: 0
+          name: ${{ matrix.artifact_name }}
+          path: docx_contents/
+          compression-level: 6
           include-hidden-files: true
           if-no-files-found: error
