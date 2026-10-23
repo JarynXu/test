@@ -28,7 +28,7 @@ jobs:
                       req=urllib.request.Request(uri,headers={"User-Agent":"Mozilla/5.0 (3GPP standards catalogue research)"})
                       with urllib.request.urlopen(req,timeout=55) as resp: data=resp.read()
                       links=Links();links.feed(data.decode("utf-8","replace"))
-                      pat=re.compile(re.escape(spec.replace(".",""))+r"-([0-9a-z])([0-9a-z])([0-9a-z])\\.zip$",re.I)
+                      pat=re.compile(re.escape(spec.replace(".",""))+r"-([0-9a-z])([0-9a-z])([0-9a-z])\.zip$",re.I)
                       values=[]
                       for ref in links.urls:
                           n=urllib.parse.unquote(urllib.parse.urlsplit(urllib.parse.urljoin(uri,ref)).path.rsplit("/",1)[-1])
