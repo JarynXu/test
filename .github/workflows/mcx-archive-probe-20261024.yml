@@ -1,0 +1,56 @@
+name: MCX official archive comparison 2026-10-24
+on:
+  push:
+    branches: [mcx-release-rebuild-20261016]
+    paths: ['.github/workflows/mcx-archive-probe-20261024.yml']
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Enumerate official primary archive listings for indexed TS and TR
+        shell: bash
+        run: |
+          python - <<'PY'
+          import concurrent.futures,datetime,html.parser,json,pathlib,re,urllib.parse,urllib.request
+          specs=["22.179","22.280","22.281","22.282","23.179","23.180","23.280","23.281","23.282","23.283","23.289","23.379","23.479","24.281","24.282","24.283","24.379","24.380","24.481","24.482","24.483","24.484","24.581","24.582","26.179","26.281","29.379","29.380","29.582","33.179","33.180","36.579-1","36.579-2","36.579-3","36.579-4","36.579-5","36.579-6","36.579-7","36.579-8","36.579-9","37.579-1","37.579-2","37.579-3","37.579-4","37.579-5","37.579-6","37.579-7","37.579-8","37.579-9","37.579-10","23.700-09","23.700-37","23.700-38","23.700-39","23.744","23.774","23.779","23.780","24.883","24.885","24.381","24.382","24.383","24.384","23.781","23.782","23.783","23.700-76","23.700-79","26.879","26.979","23.247","23.304","33.880","33.779","26.989","33.879","22.881","29.283","23.303","23.468","29.468","21.905","22.011","22.261","22.289","23.002","23.003","23.032","23.335","31.102","23.228","23.237","23.380","24.109","24.216","24.229","24.237","23.203","23.401","24.007","24.008","24.301","29.061","29.213","29.214","23.246","26.346","26.348","26.502","29.116","29.532","23.501","23.502","23.503","24.501","24.526","29.500","29.501","29.514","29.522","29.571","24.333","24.334","24.554","33.303","33.503","23.271","23.273","25.305","29.199-09","29.572","33.203","33.210","33.220","33.222","33.310","33.328","33.401","33.501","26.171","26.173","26.190","26.191","26.192","26.193","26.194","26.204","26.441","26.442","26.443","26.445","26.447","26.449","26.450","26.451","26.452","36.300","36.331","38.300","38.331","22.879","22.880","23.801-03","22.346"] 
+          class Links(html.parser.HTMLParser):
+              def __init__(self):super().__init__();self.urls=[]
+              def handle_starttag(self,tag,attrs):
+                  if tag=="a":self.urls.extend(v for k,v in attrs if k=="href" and v)
+          def probe(spec):
+              errors=[]
+              for host in ("https://www.3gpp.org/ftp","https://ftp.3gpp.org"):
+                  uri=host+f"/Specs/archive/{spec[:2]}_series/{spec}/"
+                  try:
+                      req=urllib.request.Request(uri,headers={"User-Agent":"Mozilla/5.0 (3GPP standards catalogue research)"})
+                      with urllib.request.urlopen(req,timeout=55) as resp: data=resp.read()
+                      links=Links();links.feed(data.decode("utf-8","replace"))
+                      pat=re.compile(re.escape(spec.replace(".",""))+r"-([0-9a-z])([0-9a-z])([0-9a-z])\\.zip$",re.I)
+                      values=[]
+                      for ref in links.urls:
+                          n=urllib.parse.unquote(urllib.parse.urlsplit(urllib.parse.urljoin(uri,ref)).path.rsplit("/",1)[-1])
+                          m=pat.fullmatch(n)
+                          if m:
+                              v=tuple(int(a,36) for a in m.groups())
+                              values.append({"file":n,"version":".".join(map(str,v)),"major":v[0]})
+                      if not values:raise RuntimeError("No matching 3GPP package link in directory")
+                      values.sort(key=lambda x:tuple(map(int,x["version"].split("."))))
+                      return {"specification":spec,"status":"ok","latest":values[-1],"latest_by_major":{str(m):next(v for v in reversed(values) if v["major"]==m) for m in sorted(set(v["major"] for v in values))},"source":uri}
+                  except Exception as e:errors.append(str(e))
+              return {"specification":spec,"status":"failed","errors":errors}
+          with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool: rows=list(pool.map(probe,specs))
+          out=pathlib.Path("report");out.mkdir()
+          doc={"date_utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"base":"2026-10-24 monitoring check","results":rows}
+          (out/"official_archive_probe.json").write_text(json.dumps(doc,ensure_ascii=False,indent=2),encoding="utf8")
+          print("LISTED",sum(v["status"]=="ok" for v in rows),"FAILED",sum(v["status"]!="ok" for v in rows),flush=True)
+          print("CHANGED TARGETS",[(v["specification"],v.get("latest")) for v in rows if v["specification"] in ("22.346","23.801-03","23.700-37","33.779","37.579-3","37.579-8","37.579-9","37.579-10")],flush=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mcx-official-archive-probe-20261024
+          path: report/
+          retention-days: 7
+          if-no-files-found: error
