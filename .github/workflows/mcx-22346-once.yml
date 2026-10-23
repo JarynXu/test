@@ -1,0 +1,52 @@
+name: Acquire official 3GPP TS 22.346 Rel-19
+on:
+  push:
+    branches: [mcx-release-rebuild-20261016]
+    paths: ['.github/workflows/mcx-22346-once.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Download official package and extract actual DOCX
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib,io,json,pathlib,time,urllib.request,zipfile
+          name="22.346_Rel-19_v19.0.0_Isolated-Evolved-Universal-Terrestrial-Radio-Access-Network-E-UTRAN-operation-for-public-safety-Stage-1.docx"
+          source="/Specs/archive/22_series/22.346/22346-j00.zip"
+          output=pathlib.Path("stage"); output.mkdir()
+          errors=[]
+          for host in ("https://www.3gpp.org/ftp","https://ftp.3gpp.org"):
+              url=host+source
+              try:
+                  req=urllib.request.Request(url,headers={"User-Agent":"Mozilla/5.0 (official 3GPP archive research)"})
+                  with urllib.request.urlopen(req, timeout=95) as stream: raw=stream.read()
+                  if not zipfile.is_zipfile(io.BytesIO(raw)): raise ValueError("Not an official ZIP package")
+                  with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+                      docs=[f for f in archive.namelist() if f.lower().endswith(".docx") and not f.split("/")[-1].startswith("~$")]
+                      clean=[f for f in docs if "redline" not in f.lower() and "change" not in f.lower()]
+                      if len(clean)!=1: raise ValueError(f"Expected one clean DOCX, found: {docs}")
+                      data=archive.read(clean[0])
+                  with zipfile.ZipFile(io.BytesIO(data)) as doc:
+                      if "word/document.xml" not in doc.namelist():raise ValueError("Invalid DOCX body")
+                      body=doc.read("word/document.xml").decode("utf-8","ignore")
+                      if "19.0.0" not in body:print("Warning: expected v19.0.0 not found in document XML",flush=True)
+                  (output/name).write_bytes(data)
+                  metadata={"specification":"22.346","release":"Rel-19","version":"19.0.0","official_source_url":url,"package_sha256":hashlib.sha256(raw).hexdigest(),"member":clean[0],"docx_sha256":hashlib.sha256(data).hexdigest(),"docx_size":len(data)}
+                  (output/"source.json").write_text(json.dumps(metadata,indent=2),encoding="utf-8")
+                  print(json.dumps(metadata),flush=True)
+                  break
+              except Exception as e:
+                  errors.append({"url":url,"error":str(e)})
+          else:raise RuntimeError(json.dumps(errors))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mcx-22346-rel19-docx
+          path: stage/
+          retention-days: 7
+          if-no-files-found: error
